@@ -5,6 +5,7 @@ from slacker import Slacker
 
 app = muffin.Application('webhook')
 slack = Slacker(os.environ['SLACK_BOT_TOKEN'])
+channel = os.environ['SLACK_CHANNEL']
 
 USER_MAPPING = {
     # Github: Slack
@@ -66,7 +67,7 @@ class Webhook(muffin.Handler):
 
             message = templates.get(rule, templates['default']).format(**params)
 
-            slack.chat.post_message('#github-playground', message)
+            slack.chat.post_message(channel, message)
 
             return message
 
