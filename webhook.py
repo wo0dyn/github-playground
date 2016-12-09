@@ -27,10 +27,10 @@ def get_slack_username(username):
 
 
 templates = {
-    '+label:"3 - Reviewing"': '“{pr}” <{url}> is now ready for _review_!{ping}',
-    '-label:"3 - Reviewing"': '“{pr}” <{url}> is now ready for _merge_!{ping}',
-    '+label:"4 - Testing"': '“{pr}” <{url}> is now ready for test!{ping}',
-    'default': '{username} just {action} label “{label}” to “{pr}” <{url}>',
+    '+label:"3 - Reviewing"': '<{url}|{pr} (#{number})> is now ready for _review_!{ping}',
+    '-label:"3 - Reviewing"': '<{url}|{pr} (#{number})> is now ready for _merge_!{ping}',
+    '+label:"4 - Testing"': '<{url}|{pr} (#{number})> is now ready for test!{ping}',
+    'default': '{username} just {action} label “{label}” to <{url}|{pr} (#{number})>.',
 }
 
 
@@ -51,6 +51,7 @@ class Webhook(muffin.Handler):
                     get_slack_username(assignee['login'])
                     for assignee in payload['pull_request']['assignees']),
                 'label': payload['label']['name'],
+                'number': payload['pull_request']['number'],
                 'ping': '',
                 'pr': payload['pull_request']['title'],
                 'url': payload['pull_request']['html_url'],
@@ -67,7 +68,8 @@ class Webhook(muffin.Handler):
 
             message = templates.get(rule, templates['default']).format(**params)
 
-            slack.chat.post_message(channel, message)
+            slack.chat.post_message(channel, message, username='PeopleAskBot',
+                icon_emoji=':peopleask:')
 
             return message
 
