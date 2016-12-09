@@ -1,8 +1,6 @@
-import json
 import os
 
 import muffin
-
 from slacker import Slacker
 
 app = muffin.Application('webhook')
@@ -11,7 +9,27 @@ slack = Slacker(os.environ['SLACK_BOT_TOKEN'])
 USER_MAPPING = {
     # Github: Slack
     'aichane': 'anael',
-    'wo0dyn': 'wo0dyn',
+}
+
+def get_slack_username(username):
+    """
+    Get user from mapping GitHut/Slack, when the GitHub username is
+    different from the Slack one.
+
+    >>> get_slack_username('aichane')
+    '@anael'
+    >>> get_slack_username('wo0dyn')
+    '@wo0dyn'
+
+    """
+    return '@{username}'.format(username=USER_MAPPING.get(username, username))
+
+
+templates = {
+    '+label:"3 - Reviewing"': '“{pr}” <{url}> is now ready for _review_!{ping}',
+    '-label:"3 - Reviewing"': '“{pr}” <{url}> is now ready for _merge_!{ping}',
+    '+label:"4 - Testing"': '“{pr}” <{url}> is now ready for test!{ping}',
+    'default': '{username} just {action} label “{label}” to “{pr}” <{url}>',
 }
 
 
@@ -26,19 +44,27 @@ class Webhook(muffin.Handler):
         payload = yield from request.json()
 
         if 'labeled' in payload['action']:
-            username = payload['sender']['login']
+            params = {
+                'action': 'added' if payload['action'] == 'labeled' else 'removed',
+                'assignees': ' '.join(
+                    get_slack_username(assignee['login'])
+                    for assignee in payload['pull_request']['assignees']),
+                'label': payload['label']['name'],
+                'ping': '',
+                'pr': payload['pull_request']['title'],
+                'url': payload['pull_request']['html_url'],
+                'username': get_slack_username(payload['sender']['login']),
+            }
 
-            action = 'added' if payload['action'] == 'labeled' else 'removed'
+            if params['assignees']:
+                params['ping'] = ' • ping {assignees}'.format(
+                    assignees=params['assignees'])
 
-            template = '@{username} just {action} label “{label}” to “{pr}” <{url}>'
+            rule = '{sign}label:"{label}"'.format(
+                sign='+' if params['action'] == 'added' else '-',
+                label=params['label'])
 
-            message = template.format(
-                username=USER_MAPPING.get(username, username),
-                action=action,
-                label=payload['label']['name'],
-                pr=payload['pull_request']['title'],
-                url=payload['pull_request']['html_url'],
-            )
+            message = templates.get(rule, templates['default']).format(**params)
 
             slack.chat.post_message('#github-playground', message)
 
